@@ -18,9 +18,14 @@ defmodule Server.GameStateHandler do
 
         # get players
         
-        {:ok, bucket} = Server.Registry.lookup(Server.Registry, "GState")
-        for  {k, v}  <-  Server.Bucket.getAll(bucket)  do
-            IO.puts "#{k} --> #{v}"
+        {:ok, bucket} = Server.Registry.lookup(Server.Registry, "PStates")
+        pstates = Server.Bucket.getAll(bucket)
+        for  {ip, state}  <-  Server.Bucket.getAll(bucket)  do
+            
+            for {k, v} <- state do
+                IO.puts "#{k} --> #{v}"
+            end
+            
         end
 
         # wait

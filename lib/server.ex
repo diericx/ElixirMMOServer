@@ -12,7 +12,8 @@ defmodule Server do
       Server.BucketSupervisor,
       Server.MessageReceiver,
       Server.PlayerHandler,
-      Server.GameStateHandler
+      # TODO - Create supervisor for game state
+      worker(Server.GameStateHandler, [])
     ]
 
     opts = [strategy: :one_for_all, name: Server.Supervisor]

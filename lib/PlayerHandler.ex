@@ -8,8 +8,7 @@ defmodule Server.PlayerHandler do
     end
 
     def init(:ok) do
-        IO.puts "ok"
-        v = Server.Registry.create(Server.Registry, @pstates)
+        Server.Registry.create(Server.Registry, @pstates)
         {:ok, 0}
     end
 
@@ -19,23 +18,40 @@ defmodule Server.PlayerHandler do
     #     end)
     # end
 
-    def getAllPData(p_id) do
+    def getPState(p_id) do
         case Server.Registry.lookup(Server.Registry, @pstates) do
             {:ok, bucket} ->
                 case Server.Bucket.get(bucket, p_id) do
-                    :error -> Server.Bucket.put(bucket, p_id, %{})
-                    data -> data
+                    nil -> Server.Bucket.put(bucket, p_id, %{})
+                    state -> state
                 end
             _ -> :error
         end
     end
 
-    # def updatePData(p_id, key, value) do
-    #     case Server.Registry.lookup(Server.Registry, @PS) do
+    # def getPStateValue(p_id, value) do
+    #     case Server.Registry.lookup(Server.Registry, @pstates) do
     #         {:ok, bucket} ->
-    #             Server.Bucket.put(bucket, key, value)
+    #             case Server.Bucket.get(bucket, p_id) do
+    #                 nil -> Server.Bucket.put(bucket, p_id, %{})
+    #                 state -> state
+    #             end
     #         _ -> :error
     #     end
     # end
+
+    # TODO: Make this more efficient and more diverse
+    def updatePState(p_id, key, value) do
+        case Server.Registry.lookup(Server.Registry, @pstates) do
+            {:ok, bucket} ->
+                case Server.Bucket.get(bucket, p_id) do
+                    nil -> :error
+                    state -> 
+                        state = Map.put(state, key, value)
+                        Server.Bucket.put(bucket, p_id, state)
+                end
+            _ -> :error
+        end
+    end
 
 end
