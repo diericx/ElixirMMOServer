@@ -10,7 +10,7 @@ defmodule Server do
     children = [
       {Server.Registry, name: Server.Registry},
       Server.BucketSupervisor,
-      Server.MessageReceiver,
+      # Server.MessageReceiver,
       Server.PlayerHandler,
       # TODO - Create supervisor for game state
       worker(Server.GameStateHandler, [])
