@@ -7,7 +7,8 @@ defmodule Server.Player do
     # Just a simple struct to manage the state for this genserver
     # You could add additional attributes here to keep track of for a given account
     defstruct   player_id: 0,
-                name: ""
+                x: 0,
+                y: 0
 
     @doc """
     Starts a new account process for a given `account_id`.
@@ -28,8 +29,8 @@ defmodule Server.Player do
     @doc """
     Updates the process's state (PState)
     """
-    def update_state(player_id, name) do
-        GenServer.call(via_tuple(player_id), {:update_state, name})
+    def update_state(player_id, map) do
+        GenServer.call(via_tuple(player_id), {:update_state, map})
     end
 
     @doc """
@@ -66,16 +67,17 @@ defmodule Server.Player do
         # maybe you'd want to transform the state a bit...
         response = %{
             id: state.player_id,
-            name: state.name
+            x: state.x,
+            y: state.y
         }
 
         {:reply, response, state}
     end
 
     @doc false
-    def handle_call({:update_state, name}, _from, state) do
+    def handle_call({:update_state, map}, _from, state) do
         
-        newState = Map.put(state, :name, name)
+        newState = Map.merge(state, map)
 
         {:reply, {:ok, newState}, newState}
     end

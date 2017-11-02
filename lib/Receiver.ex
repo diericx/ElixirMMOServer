@@ -1,4 +1,4 @@
-defmodule Server.MessageReceiver do
+defmodule Server.Receiver do
     use GenServer
     require Logger
     require Integer 
@@ -12,7 +12,13 @@ defmodule Server.MessageReceiver do
     end
 
     # Handle UDP data
-    def handle_info({:udp, _socket, ip, _port, data}, state) do
+    def handle_info({:udp, socket, ip, port, data}, state) do
+        IO.puts "---inspect source---"
+        IO.inspect socket
+        IO.inspect ip
+        IO.inspect port
+        IO.puts "----"
+
         parse_packet(ip, data)
         # TODO: mess with the opperator <>
         # Logger.info "Received a secret message!" <> inspect(message)
@@ -31,20 +37,13 @@ defmodule Server.MessageReceiver do
         # << ip :: [size(4), integer, unsigned, little, unit(8) >>
         ipStr = ip |> Tuple.to_list |> Enum.join(".")
 
-        <<
-            header        :: signed-integer-size(8), # 30 bytes * 8 = 240 bits
-        >> = data
-        # End Testing
-    
-        message = %{
-          header: header,
-        }
+        data = MessagePack.unpack_once(data)
 
-        Logger.info(header)
+        IO.inspect data
 
         # Part 2 Testing game state
         Server.PlayerSupervisor.find_or_create_process(ipStr)
-        Server.Player.update_state(ipStr, "got a message!")
+        Server.Player.update_state(ipStr, %{x: 99, y: 99})
         # Server.PlayerHandler.updatePData(ipStr, "note", header)
         # End Testing
 

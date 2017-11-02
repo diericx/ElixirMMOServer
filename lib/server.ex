@@ -12,7 +12,7 @@ defmodule Server do
       supervisor(Server.PlayerSupervisor, []),
       # Server.PlayerHandler,
       # Server.BucketSupervisor,
-      Server.MessageReceiver,
+      Server.Receiver,
       Server.GameStateHandler,
       # Server.PlayerHandler,
       # TODO - Create supervisor for game state
