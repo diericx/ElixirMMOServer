@@ -8,16 +8,21 @@ defmodule Server do
     import Supervisor.Spec, warn: false
 
     children = [
-      {Server.Registry, name: Server.Registry},
-      Server.BucketSupervisor,
-      # Server.MessageReceiver,
-      Server.PlayerHandler,
+      supervisor(Registry, [:unique, :player_process_registry]),
+      supervisor(Server.PlayerSupervisor, []),
+      # Server.PlayerHandler,
+      # Server.BucketSupervisor,
+      Server.MessageReceiver,
+      Server.GameStateHandler,
+      # Server.PlayerHandler,
       # TODO - Create supervisor for game state
-      worker(Server.GameStateHandler, [])
+      # worker(Server.MessageReceiver, []),
+      # worker(Server.GameStateHandler, [])
     ]
 
     opts = [strategy: :one_for_all, name: Server.Supervisor]
     Supervisor.start_link(children, opts)
+    
   end
 
 end

@@ -9,7 +9,6 @@ defmodule Server.GameStateHandler do
     end
 
     def init(:ok) do
-        Server.Registry.create(Server.Registry, "GState")
         mainLoop()
     end
 
@@ -18,14 +17,14 @@ defmodule Server.GameStateHandler do
 
         # get players
         
-        {:ok, bucket} = Server.Registry.lookup(Server.Registry, "PStates")
-        pstates = Server.Bucket.getAll(bucket)
-        for  {ip, state}  <-  Server.Bucket.getAll(bucket)  do
-            
+        playerIDs = Server.PlayerSupervisor.player_ids()
+
+        for playerID <- playerIDs do
+            IO.puts "---Player #{playerID}---"
+            state = Server.Player.get_state(playerID)
             for {k, v} <- state do
                 IO.puts "#{k} --> #{v}"
             end
-            
         end
 
         # wait

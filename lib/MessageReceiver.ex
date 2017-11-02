@@ -34,9 +34,6 @@ defmodule Server.MessageReceiver do
         <<
             header        :: signed-integer-size(8), # 30 bytes * 8 = 240 bits
         >> = data
-        
-        playerData = Server.PlayerHandler.getPState(ipStr)
-        Logger.info(playerData)
         # End Testing
     
         message = %{
@@ -46,7 +43,8 @@ defmodule Server.MessageReceiver do
         Logger.info(header)
 
         # Part 2 Testing game state
-        Server.PlayerHandler.updatePState(ipStr, :note, 0)
+        Server.PlayerSupervisor.find_or_create_process(ipStr)
+        Server.Player.update_state(ipStr, "got a message!")
         # Server.PlayerHandler.updatePData(ipStr, "note", header)
         # End Testing
 
