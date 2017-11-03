@@ -4,31 +4,78 @@ defmodule Server.Receiver do
     require Integer 
 
     def start_link(opts \\ []) do
-        GenServer.start_link(__MODULE__, :ok, opts)
+        # ip = Application.get_env :gen_tcp, :ip, {127,0,0,1}
+        port = Application.get_env :gen_tcp, :port, 6666
+        GenServer.start_link(__MODULE__,[port],[])
     end
 
-    def init (:ok) do
-        {:ok, _socket} = :gen_udp.open(21337, [:binary])
+    def init [port] do
+        # {:ok,listen_socket}= :gen_tcp.listen(port,[:binary,{:packet, 0},{:active,true},{:ip,ip}])
+        # {:ok,socket } = :gen_tcp.accept listen_socket
+        # {:ok, %{ip: ip,port: port,socket: socket}}
+        start(port)
+        {:ok, []}
     end
 
-    # Handle UDP data
-    def handle_info({:udp, socket, ip, port, data}, state) do
-        IO.puts "---inspect source---"
+    def start(port) do
+        # spawn fn ->
+            case :gen_tcp.listen(port, [:binary, active: false, reuseaddr: true]) do
+                {:ok, socket} ->
+                    Logger.info("Connected.")
+                    accept_connection(socket, 0) # <--- We'll handle this next.
+                {:error, reason} ->
+                    Logger.error("Could not listen: #{reason}")
+            end
+        # end
+    end
+
+    def accept_connection(socket, player_id) do
+        {:ok, client} = :gen_tcp.accept(socket)
+        IO.puts "Accepting new client socket: "
+        IO.inspect client
+
+        {:ok, player_id} = Server.PlayerSupervisor.create_player_process(player_id, socket)
+        IO.inspect player_id
+
+        Server.Player.start_serving(player_id, client)
+
+        # spawn fn ->
+        #     {:ok, buffer_pid} = Buffer.create() # <--- this is next
+        #     Process.flag(:trap_exit, true)
+        #     serve(client, buffer_pid) # <--- and then we'll cover this
+        # end
+
+        accept_connection(socket, player_id + 1)
+    end
+
+    @doc """
+    Receive messages from this players socket
+    """
+    def serve(socket, buffer_pid) do
         IO.inspect socket
-        IO.inspect ip
-        IO.inspect port
-        IO.puts "----"
-
-        parse_packet(ip, data)
-        # TODO: mess with the opperator <>
-        # Logger.info "Received a secret message!" <> inspect(message)
-
-        {:noreply, state}
+        case :gen_tcp.recv(socket, 0) do
+            {:ok, data} ->
+                IO.inspect data
+                buffer_pid = maybe_recreate_buffer(buffer_pid) # <-- coming up next
+                Buffer.receive(buffer_pid, data)
+                serve(socket, buffer_pid)
+            {:error, reason} ->
+                Logger.info("Socket terminating: #{inspect reason}")
+        end
     end
 
-    # Ignore everything else
-    def handle_info({_, _socket}, state) do
-        {:noreply, state}
+    @doc """
+    Recreate buffer if need be
+    """
+    defp maybe_recreate_buffer(original_pid) do
+        receive do
+            {:EXIT, ^original_pid, _reason} ->
+            {:ok, new_buffer_pid} = Buffer.create()
+            new_buffer_pid
+        after
+            10 ->
+            original_pid
+        end
     end
 
     # parse packet data

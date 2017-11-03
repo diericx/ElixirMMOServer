@@ -10,14 +10,8 @@ defmodule Server do
     children = [
       supervisor(Registry, [:unique, :player_process_registry]),
       supervisor(Server.PlayerSupervisor, []),
-      # Server.PlayerHandler,
-      # Server.BucketSupervisor,
       Server.Receiver,
-      Server.GameStateHandler,
-      # Server.PlayerHandler,
-      # TODO - Create supervisor for game state
-      # worker(Server.MessageReceiver, []),
-      # worker(Server.GameStateHandler, [])
+      # Server.GameStateHandler,
     ]
 
     opts = [strategy: :one_for_all, name: Server.Supervisor]

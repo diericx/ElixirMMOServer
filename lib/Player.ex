@@ -7,14 +7,14 @@ defmodule Server.Player do
     # Just a simple struct to manage the state for this genserver
     # You could add additional attributes here to keep track of for a given account
     defstruct   player_id: 0,
-                x: 0,
-                y: 0
+                socket: nil,
+                name: ""
 
     @doc """
     Starts a new account process for a given `account_id`.
     """
-    def start_link(player_id) do
-        GenServer.start_link(__MODULE__, [player_id], name: via_tuple(player_id))
+    def start_link(player_id, socket) do
+        GenServer.start_link(__MODULE__, [player_id, socket], name: via_tuple(player_id))
     end
 
     defp via_tuple(player_id), do: {:via, Registry, {@player_registry_name, player_id}}
@@ -29,8 +29,15 @@ defmodule Server.Player do
     @doc """
     Updates the process's state (PState)
     """
-    def update_state(player_id, map) do
-        GenServer.call(via_tuple(player_id), {:update_state, map})
+    def update_state(player_id, name) do
+        GenServer.cast(via_tuple(player_id), {:update_state, name})
+    end
+
+    @doc """
+    Calls player's Serve function with socket so it can start listening for packets
+    """
+    def start_serving(player_id, socket) do
+        GenServer.cast(via_tuple(player_id), {:serve, socket})
     end
 
     @doc """
@@ -46,17 +53,37 @@ defmodule Server.Player do
     @doc """
     Init callback
     """
-    def init([player_id]) do
+    def init([player_id, socket]) do
+        {:ok, %__MODULE__{ player_id: player_id, socket: socket }}
+    end
 
-        # Add a msg to the process mailbox to
-        # tell this process to run `:fetch_data`
-        # send(self(), :fetch_data)
-        # send(self(), :set_terminate_timer)
+    @doc """
+    Receive messages from this players socket
+    """
+    def serve(socket, buffer_pid) do
+        case :gen_tcp.recv(socket, 0) do
+            {:ok, data} ->
+                IO.inspect data
+                buffer_pid = maybe_recreate_buffer(buffer_pid) # <-- coming up next
+                Buffer.receive(buffer_pid, data)
+                serve(socket, buffer_pid)
+            {:error, reason} ->
+                Logger.info("Socket terminating: #{inspect reason}")
+        end
+    end
 
-        Logger.info("PState created... Player ID: #{player_id}")
-
-        # Set initial state and return from `init`
-        {:ok, %__MODULE__{ player_id: player_id }}
+    @doc """
+    Recreate buffer if need be
+    """
+    defp maybe_recreate_buffer(original_pid) do
+        receive do
+            {:EXIT, ^original_pid, _reason} ->
+            {:ok, new_buffer_pid} = Buffer.create()
+            new_buffer_pid
+        after
+            10 ->
+            original_pid
+        end
     end
 
     @doc """
@@ -67,19 +94,27 @@ defmodule Server.Player do
         # maybe you'd want to transform the state a bit...
         response = %{
             id: state.player_id,
-            x: state.x,
-            y: state.y
+            name: state.name
         }
 
         {:reply, response, state}
     end
 
     @doc false
-    def handle_call({:update_state, map}, _from, state) do
+    def handle_call({:update_state, name}, _from, state) do
         
-        newState = Map.merge(state, map)
+        newState = Map.put(state, :name, name)
 
         {:reply, {:ok, newState}, newState}
+    end
+
+    @doc """
+    Starts listening for packets on the given socket
+    """
+    def handle_cast({:serve, socket}, state) do
+        {:ok, buffer_pid} = Buffer.create() # <--- this is next
+        Process.flag(:trap_exit, true)
+        serve(socket, buffer_pid)
     end
 
     @doc """
@@ -89,49 +124,5 @@ defmodule Server.Player do
         Logger.info("Process terminating... Account ID: #{state.account_id}")
         {:stop, :normal, state}
     end
-
-    # # Create a new registry
-    # # Key => playerID
-    # # PID => new agent
-    # def newPState(playerID) do
-    #     # create new agent
-    #     {:ok, pid} = Agent.start_link fn -> ["empty"] end
-    #     # register 
-    #     Registry.register(:test, playerID, pid)
-    # end
-
-    # # Get all keys from :pstates Registry
-    # def getAllPStateIDs do
-    #     Registry.keys("reg", self())
-    # end
-
-    # # Get state of player
-    # def getPState(playerID) do
-    #     # get pstates agentPid
-    #     [{_, pid}] = Registry.lookup("reg", playerID)
-    #     # get agent data
-    #     Agent.get(pid, fn data -> data end)
-    # end
-
-    # # Update player's state
-    # def updatePState(playerID, state) do
-    #     # get pstate's agentPid
-    #     data = Registry.lookup(:test, playerID)
-    #     # if no id, create one with the given state
-    #     case data do
-    #         [] -> 
-    #             IO.puts "Creating new pstate..."
-    #             # create new pstate with given state
-    #             newPState(playerID)
-    #             updatePState(playerID, state)
-    #         [{_, pid}] ->
-    #             IO.puts "Updating pstate..."
-    #             IO.puts getAllPStateIDs()
-    #             # update agent data
-    #             Agent.update(pid, fn _ -> state end)
-    #     end
-        
-    # end
-
 
 end

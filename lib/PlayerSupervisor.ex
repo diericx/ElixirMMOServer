@@ -35,7 +35,8 @@ defmodule Server.PlayerSupervisor do
         if player_process_exists?(player_id) do
             {:ok, player_id}
         else
-            player_id |> create_player_process
+            {:error}
+            # player_id |> create_player_process
         end
     end
     
@@ -60,8 +61,12 @@ defmodule Server.PlayerSupervisor do
     Returns a tuple such as `{:ok, player}` if successful.
     If there is an issue, an `{:error, reason}` tuple is returned.
     """
-    def create_player_process(player_id) do
-        case Supervisor.start_child(__MODULE__, [player_id]) do
+    def create_player_process(player_id, socket) do
+        # create buffer
+        {:ok, buffer_pid} = Buffer.create() # <--- this is next
+        Process.flag(:trap_exit, true)
+        # create child
+        case Supervisor.start_child(__MODULE__, [player_id, socket]) do
             {:ok, _pid} -> {:ok, player_id}
             {:error, {:already_created, _pid}} -> {:error, :process_already_exists}
             other -> {:error, other}

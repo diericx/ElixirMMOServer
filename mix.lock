@@ -1,1 +1,2 @@
-%{"message_pack": {:hex, :message_pack, "0.2.0", "244350d139b96c94729666dfac24440c3b1e8b3d1cc67287e78b2b6779593020", [], [], "hexpm"}}
+%{"message_pack": {:hex, :message_pack, "0.2.0", "244350d139b96c94729666dfac24440c3b1e8b3d1cc67287e78b2b6779593020", [], [], "hexpm"},
+  "uuid": {:hex, :uuid, "1.1.8", "e22fc04499de0de3ed1116b770c7737779f226ceefa0badb3592e64d5cfb4eb9", [], [], "hexpm"}}
