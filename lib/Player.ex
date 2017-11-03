@@ -8,7 +8,8 @@ defmodule Server.Player do
     # You could add additional attributes here to keep track of for a given account
     defstruct   player_id: 0,
                 socket: nil,
-                name: ""
+                x: 0,
+                y: 0
 
     @doc """
     Starts a new account process for a given `account_id`.
@@ -61,12 +62,14 @@ defmodule Server.Player do
     Receive messages from this players socket
     """
     def serve(socket, buffer) do
-        case :gen_tcp.recv(socket, 0) do
-            {:ok, data} ->
-                leftover = parse_packet(data <> buffer)
-                serve(socket, leftover)
-            {:error, reason} ->
-                Logger.info("Socket terminating: #{inspect reason}")
+        spawn fn ->
+            case :gen_tcp.recv(socket, 0) do
+                {:ok, data} ->
+                    leftover = parse_packet(data <> buffer)
+                    serve(socket, leftover)
+                {:error, reason} ->
+                    Logger.info("Socket terminating: #{inspect reason}")
+            end
         end
     end
 
@@ -88,14 +91,13 @@ defmodule Server.Player do
     Returns the current state for Player process that matches player_id
     """
     def handle_call(:get_state, _from, state) do
-
         # maybe you'd want to transform the state a bit...
-        response = %{
-            id: state.player_id,
-            name: state.name
-        }
+        # response = %{
+        #     id: 0,
+        #     name: state.name
+        # }
 
-        {:ok, response}
+        {:reply, state, state}
     end
 
     @doc false
@@ -103,7 +105,7 @@ defmodule Server.Player do
         
         newState = Map.put(state, :name, name)
 
-        {:reply, {:ok, newState}, newState}
+        {:reply, :ok, newState}
     end
 
     @doc """
@@ -113,7 +115,7 @@ defmodule Server.Player do
         # {:ok, buffer_pid} = Buffer.create() # <--- this is next
         # Process.flag(:trap_exit, true)
         serve(socket, <<>>)
-        {:noreply,1}
+        {:noreply, state}
     end
 
     @doc """

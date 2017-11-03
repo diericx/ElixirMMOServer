@@ -15,7 +15,7 @@ defmodule Server.Receiver do
     end
 
     def start(port) do
-        # spawn fn ->
+        spawn fn ->
             case :gen_tcp.listen(port, [:binary, active: false, reuseaddr: true]) do
                 {:ok, socket} ->
                     Logger.info("Connected.")
@@ -23,7 +23,7 @@ defmodule Server.Receiver do
                 {:error, reason} ->
                     Logger.error("Could not listen: #{reason}")
             end
-        # end
+        end
     end
 
     def accept_connection(socket, player_id) do

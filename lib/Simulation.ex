@@ -1,11 +1,10 @@
-defmodule Server.GameStateHandler do
+defmodule Server.Simulation do
     use GenServer
 
     @refresh_rate 1000
 
     def start_link(opts \\ []) do
         GenServer.start_link(__MODULE__, :ok, opts)
-        
     end
 
     def init(:ok) do
@@ -13,15 +12,16 @@ defmodule Server.GameStateHandler do
     end
 
     def mainLoop do
-        IO.puts "Players: "
 
         # get players
-        
         playerIDs = Server.PlayerSupervisor.player_ids()
+        IO.puts playerIDs
 
         for playerID <- playerIDs do
             IO.puts "---Player #{playerID}---"
-            # state = Server.Player.get_state(playerID)
+            test = Server.Player.get_state(playerID)
+            IO.inspect test
+            # {:reply, state} = Server.Player.get_state(playerID)
             # for {k, v} <- state do
             #     IO.puts "#{k} --> #{v}"
             # end
