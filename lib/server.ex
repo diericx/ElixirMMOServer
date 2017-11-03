@@ -11,7 +11,7 @@ defmodule Server do
       supervisor(Registry, [:unique, :player_process_registry]),
       supervisor(Server.PlayerSupervisor, []),
       Server.Receiver,
-      # Server.GameStateHandler,
+      Server.GameStateHandler,
     ]
 
     opts = [strategy: :one_for_all, name: Server.Supervisor]

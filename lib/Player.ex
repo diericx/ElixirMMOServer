@@ -60,31 +60,29 @@ defmodule Server.Player do
     @doc """
     Receive messages from this players socket
     """
-    def serve(socket, buffer_pid) do
+    def serve(socket, buffer) do
         case :gen_tcp.recv(socket, 0) do
             {:ok, data} ->
-                IO.inspect data
-                buffer_pid = maybe_recreate_buffer(buffer_pid) # <-- coming up next
-                Buffer.receive(buffer_pid, data)
-                serve(socket, buffer_pid)
+                leftover = parse_packet(data <> buffer)
+                serve(socket, leftover)
             {:error, reason} ->
                 Logger.info("Socket terminating: #{inspect reason}")
         end
     end
 
     @doc """
-    Recreate buffer if need be
+    Parse packet binary
     """
-    defp maybe_recreate_buffer(original_pid) do
-        receive do
-            {:EXIT, ^original_pid, _reason} ->
-            {:ok, new_buffer_pid} = Buffer.create()
-            new_buffer_pid
-        after
-            10 ->
-            original_pid
-        end
-    end
+    def parse_packet(data) do
+        {:ok, {object, leftover}} = MessagePack.unpack_once(data)
+
+        IO.inspect object
+
+        # Server.PlayerSupervisor.find_or_create_process(ipStr)
+        # Server.Player.update_state(ipStr, %{x: 99, y: 99})
+
+        leftover
+      end
 
     @doc """
     Returns the current state for Player process that matches player_id
@@ -112,9 +110,9 @@ defmodule Server.Player do
     Starts listening for packets on the given socket
     """
     def handle_cast({:serve, socket}, state) do
-        {:ok, buffer_pid} = Buffer.create() # <--- this is next
-        Process.flag(:trap_exit, true)
-        serve(socket, buffer_pid)
+        # {:ok, buffer_pid} = Buffer.create() # <--- this is next
+        # Process.flag(:trap_exit, true)
+        serve(socket, <<>>)
     end
 
     @doc """

@@ -10,9 +10,6 @@ defmodule Server.Receiver do
     end
 
     def init [port] do
-        # {:ok,listen_socket}= :gen_tcp.listen(port,[:binary,{:packet, 0},{:active,true},{:ip,ip}])
-        # {:ok,socket } = :gen_tcp.accept listen_socket
-        # {:ok, %{ip: ip,port: port,socket: socket}}
         start(port)
         {:ok, []}
     end
@@ -33,18 +30,12 @@ defmodule Server.Receiver do
         {:ok, client} = :gen_tcp.accept(socket)
         IO.puts "Accepting new client socket: "
         IO.inspect client
-
+        # Create a new player process for the new connection
         {:ok, player_id} = Server.PlayerSupervisor.create_player_process(player_id, socket)
         IO.inspect player_id
-
+        # Make the process start collecting packets
         Server.Player.start_serving(player_id, client)
-
-        # spawn fn ->
-        #     {:ok, buffer_pid} = Buffer.create() # <--- this is next
-        #     Process.flag(:trap_exit, true)
-        #     serve(client, buffer_pid) # <--- and then we'll cover this
-        # end
-
+        # Recurse
         accept_connection(socket, player_id + 1)
     end
 
@@ -77,25 +68,4 @@ defmodule Server.Receiver do
             original_pid
         end
     end
-
-    # parse packet data
-    def parse_packet(ip, data) do
-        # DO NOT REMOVE THIS
-        # << ip :: [size(4), integer, unsigned, little, unit(8) >>
-        ipStr = ip |> Tuple.to_list |> Enum.join(".")
-
-        data = MessagePack.unpack_once(data)
-
-        IO.inspect data
-
-        # Part 2 Testing game state
-        Server.PlayerSupervisor.find_or_create_process(ipStr)
-        Server.Player.update_state(ipStr, %{x: 99, y: 99})
-        # Server.PlayerHandler.updatePData(ipStr, "note", header)
-        # End Testing
-
-        # msg = MessagePack.unpack!(data) #=> [1,2,3]
-        # [head | rest] = msg
-        # Logger.info(head)
-      end
 end
