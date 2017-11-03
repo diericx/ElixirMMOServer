@@ -21,10 +21,10 @@ defmodule Server.GameStateHandler do
 
         for playerID <- playerIDs do
             IO.puts "---Player #{playerID}---"
-            state = Server.Player.get_state(playerID)
-            for {k, v} <- state do
-                IO.puts "#{k} --> #{v}"
-            end
+            # state = Server.Player.get_state(playerID)
+            # for {k, v} <- state do
+            #     IO.puts "#{k} --> #{v}"
+            # end
         end
 
         # wait

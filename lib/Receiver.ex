@@ -38,34 +38,4 @@ defmodule Server.Receiver do
         # Recurse
         accept_connection(socket, player_id + 1)
     end
-
-    @doc """
-    Receive messages from this players socket
-    """
-    def serve(socket, buffer_pid) do
-        IO.inspect socket
-        case :gen_tcp.recv(socket, 0) do
-            {:ok, data} ->
-                IO.inspect data
-                buffer_pid = maybe_recreate_buffer(buffer_pid) # <-- coming up next
-                Buffer.receive(buffer_pid, data)
-                serve(socket, buffer_pid)
-            {:error, reason} ->
-                Logger.info("Socket terminating: #{inspect reason}")
-        end
-    end
-
-    @doc """
-    Recreate buffer if need be
-    """
-    defp maybe_recreate_buffer(original_pid) do
-        receive do
-            {:EXIT, ^original_pid, _reason} ->
-            {:ok, new_buffer_pid} = Buffer.create()
-            new_buffer_pid
-        after
-            10 ->
-            original_pid
-        end
-    end
 end

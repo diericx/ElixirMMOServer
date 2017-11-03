@@ -95,7 +95,7 @@ defmodule Server.Player do
             name: state.name
         }
 
-        {:reply, response, state}
+        {:ok, response}
     end
 
     @doc false
@@ -113,6 +113,7 @@ defmodule Server.Player do
         # {:ok, buffer_pid} = Buffer.create() # <--- this is next
         # Process.flag(:trap_exit, true)
         serve(socket, <<>>)
+        {:noreply,1}
     end
 
     @doc """
