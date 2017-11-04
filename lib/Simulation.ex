@@ -1,7 +1,7 @@
 defmodule Server.Simulation do
     use GenServer
 
-    @refresh_rate 1000
+    @refresh_rate 33
 
     def start_link(opts \\ []) do
         GenServer.start_link(__MODULE__, :ok, opts)
@@ -15,16 +15,22 @@ defmodule Server.Simulation do
 
         # get players
         playerIDs = Server.PlayerSupervisor.player_ids()
-        IO.puts playerIDs
+        # IO.puts playerIDs
 
         for playerID <- playerIDs do
-            IO.puts "---Player #{playerID}---"
-            test = Server.Player.get_state(playerID)
-            IO.inspect test
-            # {:reply, state} = Server.Player.get_state(playerID)
-            # for {k, v} <- state do
-            #     IO.puts "#{k} --> #{v}"
-            # end
+            # IO.puts "---Player #{playerID}---"
+            state = Server.Player.get_state(playerID)
+            
+            x = Map.get(state, :x)
+            y = Map.get(state, :y)
+
+            {:ok, pid} = Server.PlayerSupervisor.find_process(playerID)
+            # Kernel.send(pid, "hi")
+            message = %{type: "player", x: x, y: y}
+            packet = MessagePack.pack!(message)
+            Server.Player.send_packet_to_player(playerID, 0, packet)
+
+            # IO.inspect "(#{x}, #{y})"
         end
 
         # wait

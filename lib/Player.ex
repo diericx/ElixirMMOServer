@@ -3,13 +3,15 @@ defmodule Server.Player do
     require Logger
 
     @player_registry_name :player_process_registry
+    @refresh_rate 33
 
     # Just a simple struct to manage the state for this genserver
     # You could add additional attributes here to keep track of for a given account
-    defstruct   player_id: 0,
-                socket: nil,
+    defstruct   socket: nil,
+                player_id: 0,
                 x: 0,
-                y: 0
+                y: 0,
+                packets: []
 
     @doc """
     Starts a new account process for a given `account_id`.
@@ -30,8 +32,8 @@ defmodule Server.Player do
     @doc """
     Updates the process's state (PState)
     """
-    def update_state(player_id, name) do
-        GenServer.cast(via_tuple(player_id), {:update_state, name})
+    def update_state(player_id, newState) do
+        GenServer.cast(via_tuple(player_id), {:update_state, newState})
     end
 
     @doc """
@@ -39,6 +41,13 @@ defmodule Server.Player do
     """
     def start_serving(player_id, socket) do
         GenServer.cast(via_tuple(player_id), {:serve, socket})
+    end
+
+    @doc """
+    Sends a packet to the player to be queued for sending
+    """
+    def send_packet_to_player(player_id, priority, packet) do
+        GenServer.cast(via_tuple(player_id), {:packet, priority, packet})
     end
 
     @doc """
@@ -59,17 +68,53 @@ defmodule Server.Player do
     end
 
     @doc """
-    Receive messages from this players socket
+    Receive messages from this player's socket
     """
-    def serve(socket, buffer) do
+    def serve(socket, buffer, player_id) do
         spawn fn ->
             case :gen_tcp.recv(socket, 0) do
                 {:ok, data} ->
                     leftover = parse_packet(data <> buffer)
-                    serve(socket, leftover)
+                    serve(socket, leftover, player_id)
                 {:error, reason} ->
+                    # TODO: Handle disconnects
                     Logger.info("Socket terminating: #{inspect reason}")
+                    Logger.info("WARNING: Player has not been properly removed!")
+                    # send(via_tuple(player_id), :end_process)
             end
+        end
+    end
+
+    @doc """
+    Sends messages according to priority to this player's socket
+    """
+    def sendPackets(socket, packets) do
+        case packets do
+            [] -> nil
+            ps -> 
+                [head | tail] = ps
+                case :gen_tcp.send(socket, head) do
+                    {:error, error} -> IO.inspect "Error sending message: #{error}"
+                    :ok -> sendPackets(socket, tail)
+                end
+        end
+    end
+
+    def send_messages(socket, player_id) do
+        spawn fn ->
+            IO.puts "sending..."
+            
+            # get player info
+            state = Server.Player.get_state(player_id)
+            IO.inspect state.packets
+            # Send the packets
+            sendPackets(socket, state.packets)
+            # TODO: Update this with the leftover from send packets
+            state = Map.put(state, :packets, [])
+            Server.Player.update_state(player_id, state)
+
+            :timer.sleep(@refresh_rate)
+            send_messages(socket, player_id)
         end
     end
 
@@ -101,11 +146,9 @@ defmodule Server.Player do
     end
 
     @doc false
-    def handle_call({:update_state, name}, _from, state) do
-        
-        newState = Map.put(state, :name, name)
+    def handle_cast({:update_state, newState}, state) do
 
-        {:reply, :ok, newState}
+        {:noreply, newState}
     end
 
     @doc """
@@ -114,8 +157,21 @@ defmodule Server.Player do
     def handle_cast({:serve, socket}, state) do
         # {:ok, buffer_pid} = Buffer.create() # <--- this is next
         # Process.flag(:trap_exit, true)
-        serve(socket, <<>>)
+        serve(socket, <<>>, state.player_id)
+        send_messages(socket, state.player_id)
         {:noreply, state}
+    end
+
+    @doc """
+    Adds packet to the queue
+    """
+    def handle_cast({:packet, priority, packet}, state) do
+        {:ok, packets} = Map.fetch(state, :packets)
+        packets = packets ++ [packet]
+
+        newState = Map.put(state, :packets, packets)
+
+        {:noreply, newState}
     end
 
     @doc """

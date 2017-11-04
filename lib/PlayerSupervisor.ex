@@ -31,7 +31,7 @@ defmodule Server.PlayerSupervisor do
 
     Returns a tuple such as `{:ok, player_id}` or `{:error, reason}`
     """
-    def find_or_create_process(player_id) do
+    def find_process(player_id) do
         if player_process_exists?(player_id) do
             {:ok, player_id}
         else
@@ -93,6 +93,10 @@ defmodule Server.PlayerSupervisor do
             |> List.first
         end)
         |> Enum.sort
+    end
+
+    def remove_player(player_id) do
+        Registry.unregister(@player_registry_name, player_id)
     end
 
     @doc false
