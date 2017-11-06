@@ -11,7 +11,9 @@ defmodule Server.Player do
                 player_id: 0,
                 x: 0,
                 y: 0,
-                packets: []
+                z: 0,
+                input: %{"w" => false, "a" => false, "s" => false, "d" => false},
+                packets: %{0 => [], 1 => [], 2 => [], 3 => []}
 
     @doc """
     Starts a new account process for a given `account_id`.
@@ -74,7 +76,7 @@ defmodule Server.Player do
         spawn fn ->
             case :gen_tcp.recv(socket, 0) do
                 {:ok, data} ->
-                    leftover = parse_packet(data <> buffer)
+                    leftover = parse_packet(data <> buffer, player_id)
                     serve(socket, leftover, player_id)
                 {:error, reason} ->
                     # TODO: Handle disconnects
@@ -87,30 +89,34 @@ defmodule Server.Player do
 
     @doc """
     Sends messages according to priority to this player's socket
+    PrioMap: %{0 => [], 1 => []}
     """
-    def sendPackets(socket, packets) do
-        case packets do
-            [] -> nil
-            ps -> 
-                [head | tail] = ps
-                case :gen_tcp.send(socket, head) do
-                    {:error, error} -> IO.inspect "Error sending message: #{error}"
-                    :ok -> sendPackets(socket, tail)
+    def sendPackets(socket, prioMap, i) do
+        case prioMap[i] do
+            nil -> prioMap
+            packets ->
+                case packets do
+                    [] -> sendPackets(socket, prioMap, i+1)
+                    ps -> 
+                        [head | tail] = ps
+                        prioMap = Map.put(prioMap, i, tail)
+                        case :gen_tcp.send(socket, head) do
+                            {:error, error} -> IO.inspect "Error sending message: #{error}"
+                            :ok -> 
+                                sendPackets(socket, prioMap, i)
+                        end
                 end
         end
     end
 
     def send_messages(socket, player_id) do
         spawn fn ->
-            IO.puts "sending..."
-            
             # get player info
             state = Server.Player.get_state(player_id)
-            IO.inspect state.packets
             # Send the packets
-            sendPackets(socket, state.packets)
+            newPrioMap = sendPackets(socket, state.packets, 0)
             # TODO: Update this with the leftover from send packets
-            state = Map.put(state, :packets, [])
+            state = Map.put(state, :packets, newPrioMap)
             Server.Player.update_state(player_id, state)
 
             :timer.sleep(@refresh_rate)
@@ -121,10 +127,20 @@ defmodule Server.Player do
     @doc """
     Parse packet binary
     """
-    def parse_packet(data) do
+    def parse_packet(data, player_id) do
         {:ok, {object, leftover}} = MessagePack.unpack_once(data)
 
-        IO.inspect object
+        case object do
+            %{"type" => "input", "w" => w, "a" => a, "s" => s, "d" => d} ->
+                state = Server.Player.get_state(player_id)
+                input = state.input
+                newInput = Map.merge(input, %{"w" => w, "a" => a, "s" => s, "d" => d})
+                newState = Map.put(state, :input, newInput)
+                Server.Player.update_state(player_id, newState)
+            packet ->
+                IO.puts "No match for packet!"
+                IO.inspect packet
+        end
 
         # Server.PlayerSupervisor.find_or_create_process(ipStr)
         # Server.Player.update_state(ipStr, %{x: 99, y: 99})
@@ -166,10 +182,13 @@ defmodule Server.Player do
     Adds packet to the queue
     """
     def handle_cast({:packet, priority, packet}, state) do
-        {:ok, packets} = Map.fetch(state, :packets)
+        {:ok, prioMap} = Map.fetch(state, :packets)
+        {:ok, packets} = Map.fetch(prioMap, priority)
+        
         packets = packets ++ [packet]
 
-        newState = Map.put(state, :packets, packets)
+        prioMap = Map.put(prioMap, priority, packets)
+        newState = Map.put(state, :packets, prioMap)
 
         {:noreply, newState}
     end

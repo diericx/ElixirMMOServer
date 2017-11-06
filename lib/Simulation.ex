@@ -1,43 +1,57 @@
 defmodule Server.Simulation do
     use GenServer
 
-    @refresh_rate 33
+    @refresh_rate 50
 
     def start_link(opts \\ []) do
         GenServer.start_link(__MODULE__, :ok, opts)
     end
 
     def init(:ok) do
-        mainLoop()
+        mainLoop(%{})
     end
 
-    def mainLoop do
+    def mainLoop(state) do
 
         # get players
-        playerIDs = Server.PlayerSupervisor.player_ids()
+        player_ids = Server.PlayerSupervisor.player_ids()
         # IO.puts playerIDs
 
-        for playerID <- playerIDs do
+        for player_id <- player_ids do
             # IO.puts "---Player #{playerID}---"
-            state = Server.Player.get_state(playerID)
-            
-            x = Map.get(state, :x)
-            y = Map.get(state, :y)
+            state = Server.Player.get_state(player_id)
+            %{"w" => w, "a" => a, "s" => s, "d" => d} = state.input
 
-            {:ok, pid} = Server.PlayerSupervisor.find_process(playerID)
+            newX = state.x
+            newZ = state.z
+
+            cond do
+                w ->
+                    newZ = newZ + 1
+                a ->
+                    newX = newX - 1
+                s ->
+                    newZ = newZ - 1
+                d ->
+                    newX = newX + 1 
+                true -> true
+            end 
+
+            state = Map.merge(state, %{:x => newX, :z => newZ})
+            Server.Player.update_state(player_id, state)
+
             # Kernel.send(pid, "hi")
-            message = %{type: "player", x: x, y: y}
+            message = %{type: "player", id: player_id, x: state.x, y: 0, z: state.z}
             packet = MessagePack.pack!(message)
-            Server.Player.send_packet_to_player(playerID, 0, packet)
+            Server.Player.send_packet_to_player(player_id, 0, packet)
 
-            # IO.inspect "(#{x}, #{y})"
         end
 
         # wait
         :timer.sleep(@refresh_rate)
 
         # recurse
-        mainLoop()
+        mainLoop(state)
     end
 
 
