@@ -37,20 +37,30 @@ defmodule Server.Simulation do
                 pstate = state.players[player_id]
                 %{"w" => w, "a" => a, "s" => s, "d" => d} = pstate.input
 
-                newZ = 
+                sin = :math.sin( (pstate.rotY * :math.pi())/180 )
+                cos = :math.cos( (pstate.rotY * :math.pi())/180 )
+                sin2 = :math.sin( ((pstate.rotY * :math.pi())/180) - (:math.pi/2) )
+                cos2 = :math.cos( ((pstate.rotY * :math.pi())/180) - (:math.pi/2) )
+                {dX, dZ} = 
                     cond do
-                        w -> pstate.z + 0.4
-                        s -> pstate.z - 0.4
-                        true -> pstate.z
+                        w -> 
+                            {sin, cos}
+                        s ->
+                            {-sin, -cos}
+                        true ->
+                            {0, 0}
                     end
-                newX = 
+                {dX2, dZ2} = 
                     cond do
-                        a -> pstate.x - 0.4
-                        d -> pstate.x + 0.4
-                        true -> pstate.x
+                        a -> 
+                            {sin2, cos2}
+                        d ->
+                            {-sin2, -cos2}
+                        true ->
+                            {0, 0}
                     end
 
-                pstate = Map.merge(pstate, %{:x => newX, :z => newZ})
+                pstate = Map.merge(pstate, %{:x => pstate.x + (dX + dX2) * pstate.speed, :z => pstate.z + (dZ + dZ2) * pstate.speed })
 
                 # update state
                 players = Map.put(state.players, player_id, pstate)

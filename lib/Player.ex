@@ -9,6 +9,7 @@ defmodule Server.Player do
     # You could add additional attributes here to keep track of for a given account
     defstruct   socket: nil,
                 player_id: 0,
+                speed: 0.5,
                 x: 0.0,
                 y: 0.0,
                 z: 0.0,
