@@ -9,9 +9,12 @@ defmodule Server.Player do
     # You could add additional attributes here to keep track of for a given account
     defstruct   socket: nil,
                 player_id: 0,
-                x: 0,
-                y: 0,
-                z: 0,
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+                rotX: 0,
+                rotY: 0,
+                rotZ: 0,
                 input: %{"w" => false, "a" => false, "s" => false, "d" => false},
                 packets: %{0 => [], 1 => [], 2 => [], 3 => []}
 
@@ -32,10 +35,10 @@ defmodule Server.Player do
     end
 
     @doc """
-    Updates the process's state (PState)
+    Updates (Merges) the process's state (PState)
     """
-    def update_state(player_id, newState) do
-        GenServer.cast(via_tuple(player_id), {:update_state, newState})
+    def update_state(player_id, stateDelta) do
+        GenServer.cast(via_tuple(player_id), {:update_state, stateDelta})
     end
 
     @doc """
@@ -48,8 +51,15 @@ defmodule Server.Player do
     @doc """
     Sends a packet to the player to be queued for sending
     """
-    def send_packet_to_player(player_id, priority, packet) do
-        GenServer.cast(via_tuple(player_id), {:packet, priority, packet})
+    def send_packet_to_players_client(player_id, priority, packet) do
+        GenServer.cast(via_tuple(player_id), {:send_packet, priority, packet})
+    end
+
+    @doc """
+    Stops this player's process
+    """
+    def stop_player_process(player_id) do
+        GenServer.cast(via_tuple(player_id), :end_process)
     end
 
     @doc """
@@ -81,7 +91,7 @@ defmodule Server.Player do
                 {:error, reason} ->
                     # TODO: Handle disconnects
                     Logger.info("Socket terminating: #{inspect reason}")
-                    Logger.info("WARNING: Player has not been properly removed!")
+                    stop_player_process(player_id)
                     # send(via_tuple(player_id), :end_process)
             end
         end
@@ -91,6 +101,8 @@ defmodule Server.Player do
     Sends messages according to priority to this player's socket
     PrioMap: %{0 => [], 1 => []}
     """
+    # TODO: Make this return a map of the packets that have been sent with the
+    # "sent" variable changed to true
     def sendPackets(socket, prioMap, i) do
         case prioMap[i] do
             nil -> prioMap
@@ -115,7 +127,8 @@ defmodule Server.Player do
             state = Server.Player.get_state(player_id)
             # Send the packets
             newPrioMap = sendPackets(socket, state.packets, 0)
-            # TODO: Update this with the leftover from send packets
+            # TODO: Merge this sentMessages priolist map with the state
+            # NOT update_state 
             state = Map.put(state, :packets, newPrioMap)
             Server.Player.update_state(player_id, state)
 
@@ -136,6 +149,10 @@ defmodule Server.Player do
                 input = state.input
                 newInput = Map.merge(input, %{"w" => w, "a" => a, "s" => s, "d" => d})
                 newState = Map.put(state, :input, newInput)
+                Server.Player.update_state(player_id, newState)
+            %{"type" => "rot", "x" => x, "y" => y, "z" => z} ->
+                state = Server.Player.get_state(player_id)
+                newState = Map.merge(state, %{"rotX" => x, "rotY" => y, "rotZ" => z})
                 Server.Player.update_state(player_id, newState)
             packet ->
                 IO.puts "No match for packet!"
@@ -162,8 +179,8 @@ defmodule Server.Player do
     end
 
     @doc false
-    def handle_cast({:update_state, newState}, state) do
-
+    def handle_cast({:update_state, stateDelta}, state) do
+        newState = Map.merge(state, stateDelta)
         {:noreply, newState}
     end
 
@@ -179,16 +196,22 @@ defmodule Server.Player do
     end
 
     @doc """
-    Adds packet to the queue
+    Adds packet to the map (packet queue)
     """
-    def handle_cast({:packet, priority, packet}, state) do
+    def handle_cast({:send_packet, priority, packet}, state) do
+        # add the packet
+        # IO.inspect state
         {:ok, prioMap} = Map.fetch(state, :packets)
         {:ok, packets} = Map.fetch(prioMap, priority)
         
         packets = packets ++ [packet]
 
         prioMap = Map.put(prioMap, priority, packets)
+
+        # update it with state
         newState = Map.put(state, :packets, prioMap)
+        Server.Player.update_state(state.player_id, newState)
+
 
         {:noreply, newState}
     end
@@ -196,8 +219,8 @@ defmodule Server.Player do
     @doc """
     Gracefully end this process
     """
-    def handle_info(:end_process, state) do
-        Logger.info("Process terminating... Account ID: #{state.account_id}")
+    def handle_cast(:end_process, state) do
+        Logger.info("PROCESS TERMINATION: Player ID: #{state.player_id}")
         {:stop, :normal, state}
     end
 
