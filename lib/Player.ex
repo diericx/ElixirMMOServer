@@ -28,20 +28,6 @@ defmodule Server.Player do
     defp via_tuple(player_id), do: {:via, Registry, {@player_registry_name, player_id}}
 
     @doc """
-    Return some details (state) for this PState process
-    """
-    def get_state(player_id) do
-        GenServer.call(via_tuple(player_id), :get_state)
-    end
-
-    @doc """
-    Updates (Merges) the process's state (PState)
-    """
-    def update_state(player_id, stateDelta) do
-        GenServer.cast(via_tuple(player_id), {:update_state, stateDelta})
-    end
-
-    @doc """
     Calls player's Serve function with socket so it can start listening for packets
     """
     def start_serving(player_id, socket) do
@@ -49,16 +35,10 @@ defmodule Server.Player do
     end
 
     @doc """
-    Sends a packet to the player to be queued for sending
-    """
-    def send_packet_to_players_client(player_id, priority, packet) do
-        GenServer.cast(via_tuple(player_id), {:send_packet, priority, packet})
-    end
-
-    @doc """
     Stops this player's process
     """
     def stop_player_process(player_id) do
+        Server.Simulation.player_left(player_id)
         GenServer.cast(via_tuple(player_id), :end_process)
     end
 
@@ -76,6 +56,7 @@ defmodule Server.Player do
     Init callback
     """
     def init([player_id, socket]) do
+        Server.Simulation.player_joined(player_id)
         {:ok, %__MODULE__{ player_id: player_id, socket: socket }}
     end
 
@@ -103,37 +84,43 @@ defmodule Server.Player do
     """
     # TODO: Make this return a map of the packets that have been sent with the
     # "sent" variable changed to true
-    def sendPackets(socket, prioMap, i) do
+    def sendPackets(socket, player_id, prioMap, i) do
         case prioMap[i] do
             nil -> prioMap
             packets ->
                 case packets do
-                    [] -> sendPackets(socket, prioMap, i+1)
+                    [] -> sendPackets(socket, player_id, prioMap, i+1)
                     ps -> 
                         [head | tail] = ps
                         prioMap = Map.put(prioMap, i, tail)
                         case :gen_tcp.send(socket, head) do
-                            {:error, error} -> IO.inspect "Error sending message: #{error}"
+                            {:error, error} -> 
+                                Server.Player.stop_player_process(player_id)
+                                IO.inspect "Error sending message: #{error}"
                             :ok -> 
-                                sendPackets(socket, prioMap, i)
+                                sendPackets(socket, player_id, prioMap, i)
                         end
                 end
         end
     end
 
-    def send_messages(socket, player_id) do
+    def go_through_prio_map(socket, player_id) do
         spawn fn ->
             # get player info
-            state = Server.Player.get_state(player_id)
-            # Send the packets
-            newPrioMap = sendPackets(socket, state.packets, 0)
-            # TODO: Merge this sentMessages priolist map with the state
-            # NOT update_state 
-            state = Map.put(state, :packets, newPrioMap)
-            Server.Player.update_state(player_id, state)
+            case Server.Simulation.get_pstate(player_id) do
+                {:error, error} ->
+                    error
+                {:ok, state} ->
+                    # Send the packets
+                    newPrioMap = sendPackets(socket, player_id, state.packets, 0)
+                    # TODO: Merge this sentMessages priolist map with the state
+                    # NOT update_state 
+                    state = Map.put(state, :packets, newPrioMap)
+                    Server.Simulation.update_pstate(player_id, state)
 
-            :timer.sleep(@refresh_rate)
-            send_messages(socket, player_id)
+                    :timer.sleep(@refresh_rate)
+                    go_through_prio_map(socket, player_id)
+            end
         end
     end
 
@@ -145,15 +132,15 @@ defmodule Server.Player do
 
         case object do
             %{"type" => "input", "w" => w, "a" => a, "s" => s, "d" => d} ->
-                state = Server.Player.get_state(player_id)
-                input = state.input
-                newInput = Map.merge(input, %{"w" => w, "a" => a, "s" => s, "d" => d})
-                newState = Map.put(state, :input, newInput)
-                Server.Player.update_state(player_id, newState)
+                Server.Simulation.update_player_input(player_id, %{"w" => w, "a" => a, "s" => s, "d" => d})
             %{"type" => "rot", "x" => x, "y" => y, "z" => z} ->
-                state = Server.Player.get_state(player_id)
-                newState = Map.merge(state, %{"rotX" => x, "rotY" => y, "rotZ" => z})
-                Server.Player.update_state(player_id, newState)
+                case Server.Simulation.get_pstate(player_id) do
+                    {:ok, pstate} ->
+                        newPState = Map.merge(pstate, %{:rotX => x, :rotY => y, :rotZ => z})
+                        Server.Simulation.update_pstate(player_id, newPState)
+                    _ ->
+                        :error
+                end
             packet ->
                 IO.puts "No match for packet!"
                 IO.inspect packet
@@ -163,26 +150,8 @@ defmodule Server.Player do
         # Server.Player.update_state(ipStr, %{x: 99, y: 99})
 
         leftover
-      end
-
-    @doc """
-    Returns the current state for Player process that matches player_id
-    """
-    def handle_call(:get_state, _from, state) do
-        # maybe you'd want to transform the state a bit...
-        # response = %{
-        #     id: 0,
-        #     name: state.name
-        # }
-
-        {:reply, state, state}
     end
 
-    @doc false
-    def handle_cast({:update_state, stateDelta}, state) do
-        newState = Map.merge(state, stateDelta)
-        {:noreply, newState}
-    end
 
     @doc """
     Starts listening for packets on the given socket
@@ -191,29 +160,8 @@ defmodule Server.Player do
         # {:ok, buffer_pid} = Buffer.create() # <--- this is next
         # Process.flag(:trap_exit, true)
         serve(socket, <<>>, state.player_id)
-        send_messages(socket, state.player_id)
+        go_through_prio_map(socket, state.player_id)
         {:noreply, state}
-    end
-
-    @doc """
-    Adds packet to the map (packet queue)
-    """
-    def handle_cast({:send_packet, priority, packet}, state) do
-        # add the packet
-        # IO.inspect state
-        {:ok, prioMap} = Map.fetch(state, :packets)
-        {:ok, packets} = Map.fetch(prioMap, priority)
-        
-        packets = packets ++ [packet]
-
-        prioMap = Map.put(prioMap, priority, packets)
-
-        # update it with state
-        newState = Map.put(state, :packets, prioMap)
-        Server.Player.update_state(state.player_id, newState)
-
-
-        {:noreply, newState}
     end
 
     @doc """
