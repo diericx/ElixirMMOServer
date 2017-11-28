@@ -7,15 +7,14 @@ defmodule Server.Player do
 
     # Just a simple struct to manage the state for this genserver
     # You could add additional attributes here to keep track of for a given account
-    defstruct   socket: nil,
+    defstruct   body: %Body{
+                        type: "player",
+                        pos: %{x: 0, y: 0, z: 0},
+                        size: %{x: 1, y: 1.4, z: 1}
+                        },
+                socket: nil,
                 player_id: 0,
                 speed: 0.5,
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-                rotX: 0,
-                rotY: 0,
-                rotZ: 0,
                 input: %{"w" => false, "a" => false, "s" => false, "d" => false},
                 packets: %{0 => [], 1 => [], 2 => [], 3 => []}
 
@@ -137,7 +136,8 @@ defmodule Server.Player do
             %{"type" => "rot", "x" => x, "y" => y, "z" => z} ->
                 case Server.Simulation.get_pstate(player_id) do
                     {:ok, pstate} ->
-                        newPState = Map.merge(pstate, %{:rotX => x, :rotY => y, :rotZ => z})
+                        body = Body.updateRot(pstate.body, x, y, z)
+                        newPState = Map.put(pstate, :body, body)
                         Server.Simulation.update_pstate(player_id, newPState)
                     _ ->
                         :error

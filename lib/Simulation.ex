@@ -1,5 +1,6 @@
 defmodule Server.Simulation do
     use GenServer
+    # import Server.ABCollision.Body
 
     @reg_name :state_registry
     @gstate_name :game_state
@@ -22,6 +23,7 @@ defmodule Server.Simulation do
     """
     def init([]) do
         IO.puts "Running Simulation!"
+
         mainLoop()
         {:ok, %__MODULE__{ }}
     end
@@ -35,12 +37,14 @@ defmodule Server.Simulation do
                 state = Server.Simulation.get_state()
                 # ---Update this player's data---
                 pstate = state.players[player_id]
+                body = pstate.body
                 %{"w" => w, "a" => a, "s" => s, "d" => d} = pstate.input
 
-                sin = :math.sin( (pstate.rotY * :math.pi())/180 )
-                cos = :math.cos( (pstate.rotY * :math.pi())/180 )
-                sin2 = :math.sin( ((pstate.rotY * :math.pi())/180) - (:math.pi/2) )
-                cos2 = :math.cos( ((pstate.rotY * :math.pi())/180) - (:math.pi/2) )
+                sin = :math.sin( (body.rot.y * :math.pi())/180 )
+                cos = :math.cos( (body.rot.y * :math.pi())/180 )
+                sin2 = :math.sin( ((body.rot.y * :math.pi())/180) - (:math.pi/2) )
+                cos2 = :math.cos( ((body.rot.y * :math.pi())/180) - (:math.pi/2) )
+
                 {dX, dZ} = 
                     cond do
                         w -> 
@@ -59,14 +63,26 @@ defmodule Server.Simulation do
                         true ->
                             {0, 0}
                     end
-
-                pstate = Map.merge(pstate, %{:x => pstate.x + (dX + dX2) * pstate.speed, :z => pstate.z + (dZ + dZ2) * pstate.speed })
+                # Body with future position
+                body = Body.updatePos(pstate.body, body.pos.x + (dX + dX2) * pstate.speed, 0, body.pos.z + (dZ + dZ2) * pstate.speed)
+                
+                # check for collisions
+                # if it isnt intersecting in the new position, then move it
+                # TODO - put this in same loop as sending messages so its not 2n^2
+                pstate = 
+                    case checkForCollisions(state, player_id, body) do
+                        true -> 
+                            # call collision functions
+                            pstate
+                        false -> 
+                            # update body position
+                            Map.merge(pstate, %{:body => body})
+                    end
 
                 # update state
                 players = Map.put(state.players, player_id, pstate)
                 state = Map.put(state, :players, players)
                 Server.Simulation.update_state(state)
-
 
                 # ---Send this player's data to everyone else! (Self including)---
                 for other_player_id <- player_ids do
@@ -77,8 +93,7 @@ defmodule Server.Simulation do
                         else 
                             false
                         end
-
-                    message = %{type: "player", is_client: is_client, id: player_id, x: pstate.x, y: 0, z: pstate.z}
+                    message = %{type: "player", is_client: is_client, id: player_id, x: pstate.body.pos.x, y: 0, z: pstate.body.pos.z}
                     packet = MessagePack.pack!(message)
 
                     Server.Simulation.add_packet_to_player_queue(other_player_id, 0, packet)
@@ -92,6 +107,28 @@ defmodule Server.Simulation do
             # recurse
             mainLoop()
         end
+    end
+
+    # check for collisions
+    def checkForPlayerCollisions(players, [head | tail], player_id, future_body) do
+        if (head == player_id) do
+            checkForPlayerCollisions(players, tail, player_id, future_body)
+        else
+            case Body.intersect(players[head].body, future_body) do
+                true -> 
+                    true
+                false -> 
+                    checkForPlayerCollisions(players, tail, player_id, future_body)
+            end
+        end
+    end
+    # base case
+    def checkForPlayerCollisions(_, [], _, _) do
+        false
+    end
+
+    def checkForCollisions(state, player_id, future_body) do
+        checkForPlayerCollisions(state.players, Map.keys(state.players), player_id, future_body)
     end
 
     @doc """
