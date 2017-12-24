@@ -9,8 +9,8 @@ defmodule Server.Player do
     # You could add additional attributes here to keep track of for a given account
     defstruct   body: %Body{
                         type: "player",
-                        pos: %{x: 0, y: 0, z: 0},
-                        size: %{x: 1, y: 1.4, z: 1}
+                        pos: %{x: 0, y: 0},
+                        size: %{x: 1, y: 1}
                         },
                 socket: nil,
                 player_id: 0,
@@ -133,10 +133,10 @@ defmodule Server.Player do
         case object do
             %{"type" => "input", "w" => w, "a" => a, "s" => s, "d" => d} ->
                 Server.Simulation.update_player_input(player_id, %{"w" => w, "a" => a, "s" => s, "d" => d})
-            %{"type" => "rot", "x" => x, "y" => y, "z" => z} ->
+            %{"type" => "rot", "z" => z} ->
                 case Server.Simulation.get_pstate(player_id) do
                     {:ok, pstate} ->
-                        body = Body.updateRot(pstate.body, x, y, z)
+                        body = Body.updateRot(pstate.body, z)
                         newPState = Map.put(pstate, :body, body)
                         Server.Simulation.update_pstate(player_id, newPState)
                     _ ->

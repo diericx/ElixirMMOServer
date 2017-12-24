@@ -54,7 +54,7 @@ defmodule Server.Simulation do
                     end
 
                 # Body with future position
-                body = Body.updatePos(pstate.body, newX, newY, 0)
+                body = Body.updatePos(pstate.body, newX, newY)
                 
                 # check for collisions
                 # if it isnt intersecting in the new position, then move it
