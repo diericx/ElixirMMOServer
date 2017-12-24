@@ -35,10 +35,11 @@ defmodule Server.Simulation do
 
             for player_id <- player_ids do
                 state = Server.Simulation.get_state()
-                # ---Update this player's data---
+
+                # ---Update this player's position---
                 pstate = state.players[player_id]
                 body = pstate.body
-                %{"w" => w, "a" => a, "s" => s, "d" => d} = pstate.input
+                %{"w" => w, "a" => a, "s" => s, "d" => d, "lmb" => lmb} = pstate.input
 
                 newX = 
                     cond do
@@ -55,8 +56,13 @@ defmodule Server.Simulation do
 
                 # Body with future position
                 body = Body.updatePos(pstate.body, newX, newY)
+
+                # ---attempt to attack---
+                if lmb do
+                    IO.puts "Firing!"
+                end
                 
-                # check for collisions
+                # ---check for collisions---
                 # if it isnt intersecting in the new position, then move it
                 # TODO - put this in same loop as sending messages so its not 2n^2
                 pstate = 

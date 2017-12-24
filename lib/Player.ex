@@ -15,7 +15,12 @@ defmodule Server.Player do
                 socket: nil,
                 player_id: 0,
                 speed: 0.25,
-                input: %{"w" => false, "a" => false, "s" => false, "d" => false},
+                input: %{ "w" => false, 
+                          "a" => false, 
+                          "s" => false, 
+                          "d" => false, 
+                          "lmb" => false
+                        },
                 packets: %{0 => [], 1 => [], 2 => [], 3 => []}
 
     @doc """
@@ -131,8 +136,8 @@ defmodule Server.Player do
         {:ok, {object, leftover}} = MessagePack.unpack_once(data)
 
         case object do
-            %{"type" => "input", "w" => w, "a" => a, "s" => s, "d" => d} ->
-                Server.Simulation.update_player_input(player_id, %{"w" => w, "a" => a, "s" => s, "d" => d})
+            %{"type" => "input", "w" => w, "a" => a, "s" => s, "d" => d, "lmb" => lmb} ->
+                Server.Simulation.update_player_input(player_id, %{"w" => w, "a" => a, "s" => s, "d" => d, "lmb" => lmb})
             %{"type" => "rot", "z" => z} ->
                 case Server.Simulation.get_pstate(player_id) do
                     {:ok, pstate} ->
