@@ -40,31 +40,21 @@ defmodule Server.Simulation do
                 body = pstate.body
                 %{"w" => w, "a" => a, "s" => s, "d" => d} = pstate.input
 
-                sin = :math.sin( (body.rot.y * :math.pi())/180 )
-                cos = :math.cos( (body.rot.y * :math.pi())/180 )
-                sin2 = :math.sin( ((body.rot.y * :math.pi())/180) - (:math.pi/2) )
-                cos2 = :math.cos( ((body.rot.y * :math.pi())/180) - (:math.pi/2) )
+                newX = 
+                    cond do
+                        d -> body.pos.x + (1 * pstate.speed)
+                        a -> body.pos.x - (1 * pstate.speed)
+                        true -> body.pos.x
+                    end
+                newY = 
+                    cond do
+                        w -> body.pos.y + (1 * pstate.speed)
+                        s -> body.pos.y - (1 * pstate.speed)
+                        true -> body.pos.y
+                    end
 
-                {dX, dZ} = 
-                    cond do
-                        w -> 
-                            {sin, cos}
-                        s ->
-                            {-sin, -cos}
-                        true ->
-                            {0, 0}
-                    end
-                {dX2, dZ2} = 
-                    cond do
-                        a -> 
-                            {sin2, cos2}
-                        d ->
-                            {-sin2, -cos2}
-                        true ->
-                            {0, 0}
-                    end
                 # Body with future position
-                body = Body.updatePos(pstate.body, body.pos.x + (dX + dX2) * pstate.speed, 0, body.pos.z + (dZ + dZ2) * pstate.speed)
+                body = Body.updatePos(pstate.body, newX, newY, 0)
                 
                 # check for collisions
                 # if it isnt intersecting in the new position, then move it
@@ -93,7 +83,7 @@ defmodule Server.Simulation do
                         else 
                             false
                         end
-                    message = %{type: "player", is_client: is_client, id: player_id, x: pstate.body.pos.x, y: 0, z: pstate.body.pos.z}
+                    message = %{type: "player", is_client: is_client, id: player_id, x: pstate.body.pos.x, y: pstate.body.pos.y, z: 0}
                     packet = MessagePack.pack!(message)
 
                     Server.Simulation.add_packet_to_player_queue(other_player_id, 0, packet)

@@ -14,7 +14,7 @@ defmodule Server.Player do
                         },
                 socket: nil,
                 player_id: 0,
-                speed: 0.5,
+                speed: 0.25,
                 input: %{"w" => false, "a" => false, "s" => false, "d" => false},
                 packets: %{0 => [], 1 => [], 2 => [], 3 => []}
 
