@@ -24,9 +24,28 @@ defmodule Server.Simulation do
     def init([]) do
         IO.puts "Running Simulation!"
 
+        # {:ok, binBalance} = Ethereumex.HttpClient.eth_get_balance("0x627306090abaB3A6e1400e9345bC60c78a8BEf57")
+        # binBalance = String.slice(binBalance, 2..34)
+        # {integer, remainder} = Integer.parse(binBalance, 16)
+        # IO.puts integer
+
+        # {:ok, accounts} = Ethereumex.HttpClient.eth_accounts
+        # IO.inspect accounts
+        # [head | tail] = accounts
+
+        # transaction = %{
+        #     "from" => head,
+        #     "to" => "0xf25186b5081ff5ce73482ad761db0eb0d25abfbf",
+        #     "data" => "0x7749cf230000000000000000000000000000000000000000000000000000000000000000"
+        # }
+        # result = Ethereumex.HttpClient.eth_call(transaction)
+        # IO.inspect result
+
         mainLoop()
         {:ok, %__MODULE__{ }}
     end
+
+    # curl localhost:7545 -X POST --data '{"jsonrpc":"2.0", "method":"eth_call", "params":[{"from": "eth.accounts[0]", "to": "0xf25186b5081ff5ce73482ad761db0eb0d25abfbf", "data": "0x7749cf0000000000000000000000000000000000000000000000000000000000000005"}], "id":1}'
 
     def mainLoop() do
         spawn fn ->

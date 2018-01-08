@@ -1,3 +1,6 @@
+# Module for Players, holds their connection and their Actor data
+# COMPOSITION: Actor
+
 defmodule Server.Player do
     use GenServer
     require Logger
@@ -8,7 +11,6 @@ defmodule Server.Player do
     # Just a simple struct to manage the state for this genserver
     # You could add additional attributes here to keep track of for a given account
     defstruct   body: %Body{
-                        type: "player",
                         pos: %{x: 0, y: 0},
                         size: %{x: 1, y: 1}
                         },
@@ -109,6 +111,8 @@ defmodule Server.Player do
         end
     end
 
+    # Goes through the Priority Map for this player, sending the packets
+    #   that should be sent at this time. Then update the player's PrioMap.
     def go_through_prio_map(socket, player_id) do
         spawn fn ->
             # get player info
@@ -122,7 +126,7 @@ defmodule Server.Player do
                     # NOT update_state 
                     state = Map.put(state, :packets, newPrioMap)
                     Server.Simulation.update_pstate(player_id, state)
-
+                    # Sleep until next time we should check the prioMap for sends
                     :timer.sleep(@refresh_rate)
                     go_through_prio_map(socket, player_id)
             end

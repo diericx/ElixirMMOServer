@@ -1,7 +1,6 @@
 defmodule Body do
 
-    defstruct   type: nil,
-                pos:  %{x: 0, y: 0},
+    defstruct   pos:  %{x: 0, y: 0},
                 size: %{x: 0, y: 0},
                 rot:  %{z: 0},
                 onCollide: nil
