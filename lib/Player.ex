@@ -1,8 +1,7 @@
 # Module for Players, holds their connection and their Actor data
 # COMPOSITION: Actor
-
 defmodule Server.PlayerState do
-    
+    defstruct Server.Actor.player_fields
 end
 
 defmodule Server.Player do
@@ -14,16 +13,11 @@ defmodule Server.Player do
 
     # Just a simple struct to manage the state for this genserver
     # You could add additional attributes here to keep track of for a given account
-    defstruct   Server.Actor.common_fields ++ [
+    defstruct   [
                     socket: nil,
                     player_id: 0,
-                    input: %{ "w" => false, 
-                          "a" => false, 
-                          "s" => false, 
-                          "d" => false, 
-                          "lmb" => false
-                    },
-                    packets: %{0 => [], 1 => [], 2 => [], 3 => []}]
+                    
+                ]
 
     @doc """
     Starts a new account process for a given `account_id`.

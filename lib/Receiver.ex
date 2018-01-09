@@ -19,23 +19,24 @@ defmodule Server.Receiver do
             case :gen_tcp.listen(port, [:binary, active: false, reuseaddr: true]) do
                 {:ok, socket} ->
                     Logger.info("Connected.")
-                    accept_connection(socket, 0) # <--- We'll handle this next.
+                    accept_connection(socket)
                 {:error, reason} ->
                     Logger.error("Could not listen: #{reason}")
             end
         end
     end
 
-    def accept_connection(socket, player_id) do
+    def accept_connection(socket) do
         {:ok, client} = :gen_tcp.accept(socket)
         IO.puts "Accepting new client socket: "
         IO.inspect client
+        player_id = Server.Simulation.get_next_actorId()
         # Create a new player process for the new connection
         {:ok, player_id} = Server.PlayerSupervisor.create_player_process(player_id, socket)
         IO.inspect player_id
         # Make the process start collecting packets
         Server.Player.start_serving(player_id, client)
         # Recurse
-        accept_connection(socket, player_id + 1)
+        accept_connection(socket)
     end
 end

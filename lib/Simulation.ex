@@ -7,7 +7,10 @@ defmodule Server.Simulation do
     @refresh_rate 33
 
     # Game State
-    defstruct   actors_dynamic: %{}
+    # TODO - Move this data to an Actor thread
+    defstruct   actors_dynamic: %{},
+                next_actorId: 0
+
 
     @doc """
     Starts a new account process for a given `account_id`.
@@ -62,14 +65,14 @@ defmodule Server.Simulation do
 
                 newX = 
                     cond do
-                        d -> body.pos.x + (1 * pstate.speed)
-                        a -> body.pos.x - (1 * pstate.speed)
+                        d -> body.pos.x + (1 * pstate.stats.speed)
+                        a -> body.pos.x - (1 * pstate.stats.speed)
                         true -> body.pos.x
                     end
                 newY = 
                     cond do
-                        w -> body.pos.y + (1 * pstate.speed)
-                        s -> body.pos.y - (1 * pstate.speed)
+                        w -> body.pos.y + (1 * pstate.stats.speed)
+                        s -> body.pos.y - (1 * pstate.stats.speed)
                         true -> body.pos.y
                     end
 
@@ -154,7 +157,7 @@ defmodule Server.Simulation do
     def create_pstate(state, player_id) do
         case Map.fetch(state.actors_dynamic, player_id) do
             {:ok, _} -> state
-            _ -> Map.put(state, :actors_dynamic, Map.put(state.actors_dynamic, player_id, %Server.Player{}))
+            _ -> Map.put(state, :actors_dynamic, Map.put(state.actors_dynamic, player_id, %Server.Actor.PlayerState{}))
         end
     end
 
@@ -239,6 +242,13 @@ defmodule Server.Simulation do
     end
 
     @doc """
+    Return the next actor id
+    """
+    def get_next_actorId() do
+        GenServer.call(via_tuple(@gstate_name), :get_next_actorId)
+    end
+
+    @doc """
     Return's a specific player's state
     """
     def get_pstate(player_id) do
@@ -315,6 +325,15 @@ defmodule Server.Simulation do
     """
     def handle_call(:get_state, _from, state) do
         {:reply, state, state}
+    end
+
+    @doc """
+    Returns the next actor id
+    """
+    def handle_call(:get_next_actorId, _from, state) do
+        actorId = state.next_actorId
+        state = Map.put(state, :next_actorId, state.next_actorId+1)
+        {:reply, actorId, state}
     end
 
     @doc """
