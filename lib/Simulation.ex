@@ -7,7 +7,7 @@ defmodule Server.Simulation do
     @refresh_rate 33
 
     # Game State
-    defstruct   players: %{}
+    defstruct   actors_dynamic: %{}
 
     @doc """
     Starts a new account process for a given `account_id`.
@@ -49,14 +49,14 @@ defmodule Server.Simulation do
 
     def mainLoop() do
         spawn fn ->
-            # get players
+            # get actors_dynamic
             player_ids = Server.PlayerSupervisor.player_ids()
 
             for player_id <- player_ids do
                 state = Server.Simulation.get_state()
 
                 # ---Update this player's position---
-                pstate = state.players[player_id]
+                pstate = state.actors_dynamic[player_id]
                 body = pstate.body
                 %{"w" => w, "a" => a, "s" => s, "d" => d, "lmb" => lmb} = pstate.input
 
@@ -95,8 +95,8 @@ defmodule Server.Simulation do
                     end
 
                 # update state
-                players = Map.put(state.players, player_id, pstate)
-                state = Map.put(state, :players, players)
+                actors_dynamic = Map.put(state.actors_dynamic, player_id, pstate)
+                state = Map.put(state, :actors_dynamic, actors_dynamic)
                 Server.Simulation.update_state(state)
 
                 # ---Send this player's data to everyone else! (Self including)---
@@ -125,15 +125,15 @@ defmodule Server.Simulation do
     end
 
     # check for collisions
-    def checkForPlayerCollisions(players, [head | tail], player_id, future_body) do
+    def checkForPlayerCollisions(actors_dynamic, [head | tail], player_id, future_body) do
         if (head == player_id) do
-            checkForPlayerCollisions(players, tail, player_id, future_body)
+            checkForPlayerCollisions(actors_dynamic, tail, player_id, future_body)
         else
-            case Body.intersect(players[head].body, future_body) do
+            case Body.intersect(actors_dynamic[head].body, future_body) do
                 true -> 
                     true
                 false -> 
-                    checkForPlayerCollisions(players, tail, player_id, future_body)
+                    checkForPlayerCollisions(actors_dynamic, tail, player_id, future_body)
             end
         end
     end
@@ -143,7 +143,7 @@ defmodule Server.Simulation do
     end
 
     def checkForCollisions(state, player_id, future_body) do
-        checkForPlayerCollisions(state.players, Map.keys(state.players), player_id, future_body)
+        checkForPlayerCollisions(state.actors_dynamic, Map.keys(state.actors_dynamic), player_id, future_body)
     end
 
     @doc """
@@ -152,9 +152,9 @@ defmodule Server.Simulation do
     -> full game state map
     """
     def create_pstate(state, player_id) do
-        case Map.fetch(state.players, player_id) do
+        case Map.fetch(state.actors_dynamic, player_id) do
             {:ok, _} -> state
-            _ -> Map.put(state, :players, Map.put(state.players, player_id, %Server.Player{}))
+            _ -> Map.put(state, :actors_dynamic, Map.put(state.actors_dynamic, player_id, %Server.Player{}))
         end
     end
 
@@ -164,8 +164,8 @@ defmodule Server.Simulation do
     -> full game state map
     """
     def remove_pstate(state, player_id) do
-        case Map.fetch(state.players, player_id) do
-            {:ok, _} -> Map.put(state, :players, Map.delete(state.players, player_id))
+        case Map.fetch(state.actors_dynamic, player_id) do
+            {:ok, _} -> Map.put(state, :actors_dynamic, Map.delete(state.actors_dynamic, player_id))
             _ -> state
         end
     end
@@ -176,7 +176,7 @@ defmodule Server.Simulation do
     -> {:eror, :player_does_not_exist} if player is not found
     """
     def get_pstate(state, player_id) do
-        case Map.fetch(state.players, player_id) do
+        case Map.fetch(state.actors_dynamic, player_id) do
             {:ok, pstate} -> {:ok, pstate}
             _ -> {:error, :player_does_not_exist}
         end
@@ -188,8 +188,8 @@ defmodule Server.Simulation do
     -> full game state map
     """
     def update_pstate(state, player_id, pstate) do
-        newPlayers = Map.put(state.players, player_id, pstate)
-        Map.put(state, :players, newPlayers)
+        newactors_dynamic = Map.put(state.actors_dynamic, player_id, pstate)
+        Map.put(state, :actors_dynamic, newactors_dynamic)
     end
 
     @doc """
@@ -328,9 +328,9 @@ defmodule Server.Simulation do
     Update player's input state
     """
     def handle_cast({:update_player_input, player_id, input_state}, state) do
-        pstate = Map.put(state.players[player_id], :input, input_state)
-        newPlayersState = Map.put(state.players, player_id, pstate )
-        newState = Map.put(state, :players, newPlayersState)
+        pstate = Map.put(state.actors_dynamic[player_id], :input, input_state)
+        newactors_dynamicState = Map.put(state.actors_dynamic, player_id, pstate )
+        newState = Map.put(state, :actors_dynamic, newactors_dynamicState)
         {:noreply, newState}
     end
 
