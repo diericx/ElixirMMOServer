@@ -33,7 +33,6 @@ defmodule Server.Receiver do
         player_id = Server.Simulation.get_next_actorId()
         # Create a new player process for the new connection
         {:ok, player_id} = Server.PlayerSupervisor.create_player_process(player_id, socket)
-        IO.inspect player_id
         # Make the process start collecting packets
         Server.Player.start_serving(player_id, client)
         # Recurse

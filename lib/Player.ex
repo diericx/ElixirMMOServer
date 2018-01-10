@@ -15,8 +15,7 @@ defmodule Server.Player do
     # You could add additional attributes here to keep track of for a given account
     defstruct   [
                     socket: nil,
-                    player_id: 0,
-                    
+                    player_id: 0
                 ]
 
     @doc """

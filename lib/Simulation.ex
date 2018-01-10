@@ -1,6 +1,9 @@
 defmodule Server.Simulation do
     use GenServer
-    # import Server.ABCollision.Body
+
+    # Alias' for libraries
+    alias Server.Actor, as: Actor
+    alias Server.Player, as: Player
 
     @reg_name :state_registry
     @gstate_name :game_state
@@ -9,8 +12,8 @@ defmodule Server.Simulation do
     # Game State
     # TODO - Move this data to an Actor thread
     defstruct   actors_dynamic: %{},
+                projectiles: [],
                 next_actorId: 0
-
 
     @doc """
     Starts a new account process for a given `account_id`.
@@ -65,9 +68,11 @@ defmodule Server.Simulation do
 
                 newX = 
                     cond do
-                        d -> body.pos.x + (1 * pstate.stats.speed)
+                        d -> 
+                            body.pos.x + (1 * pstate.stats.speed)
                         a -> body.pos.x - (1 * pstate.stats.speed)
-                        true -> body.pos.x
+                        true -> 
+                            body.pos.x
                     end
                 newY = 
                     cond do
@@ -79,9 +84,15 @@ defmodule Server.Simulation do
                 # Body with future position
                 body = Body.updatePos(pstate.body, newX, newY)
 
+                # ---Update player weapon cooldown---
+                pstate = Actor.PlayerState.update_weapon_cooldown(pstate)
                 # ---attempt to attack---
                 if lmb do
-                    IO.puts "Firing!"
+                    {state, pstate} = 
+                        case Actor.PlayerState.fire_weapon(state, pstate) do
+                            {s, ps} -> {s, ps}
+                            :cooldown_block -> {state, pstate}
+                        end
                 end
                 
                 # ---check for collisions---
@@ -101,6 +112,9 @@ defmodule Server.Simulation do
                 actors_dynamic = Map.put(state.actors_dynamic, player_id, pstate)
                 state = Map.put(state, :actors_dynamic, actors_dynamic)
                 Server.Simulation.update_state(state)
+
+                # ---Send Projectile data to this player---
+                send_projectiles(state, player_id, state.projectiles)
 
                 # ---Send this player's data to everyone else! (Self including)---
                 for other_player_id <- player_ids do
@@ -125,6 +139,17 @@ defmodule Server.Simulation do
             # recurse
             mainLoop()
         end
+    end
+
+    def send_projectiles(state, player_id, []) do state end
+    def send_projectiles(state, player_id, projectiles) do
+        [projectile_id | tail] = projectiles
+        actorState = state.actors_dynamic[projectile_id]
+        message = %{type: "projectile", id: projectile_id, x: actorState.body.pos.x, y: actorState.body.pos.y, z: 0}
+        packet = MessagePack.pack!(message)
+        Server.Simulation.add_packet_to_player_queue(player_id, 0, packet)
+        # recurse
+        send_projectiles(state, player_id, tail)
     end
 
     # check for collisions
@@ -157,7 +182,7 @@ defmodule Server.Simulation do
     def create_pstate(state, player_id) do
         case Map.fetch(state.actors_dynamic, player_id) do
             {:ok, _} -> state
-            _ -> Map.put(state, :actors_dynamic, Map.put(state.actors_dynamic, player_id, %Server.Actor.PlayerState{}))
+            _ -> Map.put(state, :actors_dynamic, Map.put(state.actors_dynamic, player_id, %Actor.PlayerState{}))
         end
     end
 
@@ -193,6 +218,16 @@ defmodule Server.Simulation do
     def update_pstate(state, player_id, pstate) do
         newactors_dynamic = Map.put(state.actors_dynamic, player_id, pstate)
         Map.put(state, :actors_dynamic, newactors_dynamic)
+    end
+
+    @doc """
+    Adds an actor id to the projectiles map
+    Returns
+        updated gameState
+    """
+    def add_projectile_id(state, id) do
+        projectiles = Map.put(state.projectiles, id, true)
+        Map.put(state, :projectiles, state.projectiles)
     end
 
     @doc """
@@ -244,8 +279,17 @@ defmodule Server.Simulation do
     @doc """
     Return the next actor id
     """
+    # Call from another process
     def get_next_actorId() do
         GenServer.call(via_tuple(@gstate_name), :get_next_actorId)
+    end
+    # Call from server process
+    def get_next_actorId(state) do
+        actorId = state.next_actorId
+        IO.inspect actorId
+        state = Map.put(state, :next_actorId, state.next_actorId+1)
+        IO.inspect state.next_actorId
+        {actorId, state}
     end
 
     @doc """
@@ -331,8 +375,7 @@ defmodule Server.Simulation do
     Returns the next actor id
     """
     def handle_call(:get_next_actorId, _from, state) do
-        actorId = state.next_actorId
-        state = Map.put(state, :next_actorId, state.next_actorId+1)
+        {actorId, state} = get_next_actorId(state)
         {:reply, actorId, state}
     end
 

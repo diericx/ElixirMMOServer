@@ -2,7 +2,7 @@ defmodule Body do
 
     defstruct   pos:  %{x: 0, y: 0},
                 size: %{x: 0, y: 0},
-                rot:  %{z: 0},
+                rot:  %{x: 0},
                 onCollide: nil
 
     # def isPointInside(%{x: x1, y: y1}, %{x: x2, y: y2}) do
@@ -13,8 +13,8 @@ defmodule Body do
         Map.put(body, :pos, Map.merge(body.pos, %{x: x, y: y}))
     end
 
-    def updateRot(body, z) do
-        Map.put(body, :rot, Map.merge(body.rot, %{z: z}))
+    def updateRot(body, x) do
+        Map.put(body, :rot, Map.merge(body.rot, %{x: x}))
     end
 
     def intersect(body1, body2) do
