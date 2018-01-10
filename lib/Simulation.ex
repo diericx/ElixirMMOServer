@@ -16,12 +16,15 @@ defmodule Server.Simulation do
                 next_actorId: 0
 
     @doc """
-    Starts a new account process for a given `account_id`.
+    Starts a new process for gamestate
     """
     def start_link() do
         GenServer.start_link(__MODULE__, [], name: via_tuple(:game_state))
     end
 
+    @doc """
+    Get the location of a process in the registry via id
+    """
     defp via_tuple(id), do: {:via, Registry, {@reg_name, id}}
 
     @doc """
@@ -50,8 +53,6 @@ defmodule Server.Simulation do
         mainLoop()
         {:ok, %__MODULE__{ }}
     end
-
-    # curl localhost:7545 -X POST --data '{"jsonrpc":"2.0", "method":"eth_call", "params":[{"from": "eth.accounts[0]", "to": "0xf25186b5081ff5ce73482ad761db0eb0d25abfbf", "data": "0x7749cf0000000000000000000000000000000000000000000000000000000000000005"}], "id":1}'
 
     def mainLoop() do
         spawn fn ->
@@ -179,7 +180,12 @@ defmodule Server.Simulation do
         end
     end
 
-    # check for collisions
+    @doc """
+    Recursively Check players for collisions
+    Returns True/False
+    """
+    # base case
+    def checkForPlayerCollisions(_, [], _, _) do false end
     def checkForPlayerCollisions(actors_dynamic, [head | tail], player_id, future_body) do
         if (head == player_id) do
             checkForPlayerCollisions(actors_dynamic, tail, player_id, future_body)
@@ -194,10 +200,6 @@ defmodule Server.Simulation do
                     checkForPlayerCollisions(actors_dynamic, tail, player_id, future_body)
             end
         end
-    end
-    # base case
-    def checkForPlayerCollisions(_, [], _, _) do
-        false
     end
 
     def checkForCollisions(state, player_id, future_body) do
@@ -219,7 +221,7 @@ defmodule Server.Simulation do
     @doc """
     Removes a pstate from game state, or does nothing if player not found
     Returns 
-    -> full game state map
+        -> GameState
     """
     def remove_pstate(state, player_id) do
         case Map.fetch(state.actors_dynamic, player_id) do
@@ -229,9 +231,10 @@ defmodule Server.Simulation do
     end
 
     @doc """
+    Retrieves a player state
     Returns 
-    -> pstate map
-    -> {:eror, :player_does_not_exist} if player is not found
+        -> pstate map
+        -> {:eror, :player_does_not_exist} if player is not found
     """
     def get_pstate(state, player_id) do
         case Map.fetch(state.actors_dynamic, player_id) do
@@ -241,7 +244,7 @@ defmodule Server.Simulation do
     end
 
     @doc """
-    Updates a pstate
+    Updates a player state
     Returns 
     -> full game state map
     """
@@ -261,7 +264,7 @@ defmodule Server.Simulation do
     end
 
     @doc """
-    [Local]
+    [Internal]
     Add a packet to a player's packet PrioMap
     Returns 
     -> full game state map
@@ -280,41 +283,9 @@ defmodule Server.Simulation do
     end
 
     @doc """
-    A Player has joined
-    """
-    def player_joined(player_id) do
-        GenServer.call(via_tuple(@gstate_name), {:player_joined,  player_id})
-    end
-
-    @doc """
-    A Player has left
-    """
-    def player_left(player_id) do
-        GenServer.call(via_tuple(@gstate_name), {:player_left,  player_id})
-    end
-
-    @doc """
-    Add a packet to a player's packet queue
-    """
-    def add_packet_to_player_queue(player_id, priority, packet) do
-        GenServer.call(via_tuple(@gstate_name), {:add_packet_to_player_queue,  player_id, priority, packet})
-    end
-
-    @doc """
-    Return the game state
-    """
-    def get_state() do
-        GenServer.call(via_tuple(@gstate_name), :get_state)
-    end
-
-    @doc """
+    [Internal]
     Return the next actor id
     """
-    # Call from another process
-    def get_next_actorId() do
-        GenServer.call(via_tuple(@gstate_name), :get_next_actorId)
-    end
-    # Call from server process
     def get_next_actorId(state) do
         actorId = state.next_actorId
         IO.inspect actorId
@@ -323,7 +294,52 @@ defmodule Server.Simulation do
         {actorId, state}
     end
 
+    # ---------------------------------------------------------
+    # --- Functions meant for external use, Genserver calls ---
+    # ---------------------------------------------------------
+
     @doc """
+    [External]
+    Handle a player joining 
+    """
+    def player_joined(player_id) do
+        GenServer.call(via_tuple(@gstate_name), {:player_joined,  player_id})
+    end
+
+    @doc """
+    [External]
+    Handle a player leaving
+    """
+    def player_left(player_id) do
+        GenServer.call(via_tuple(@gstate_name), {:player_left,  player_id})
+    end
+
+    @doc """
+    [External]
+    Add a packet to a player's packet queue
+    """
+    def add_packet_to_player_queue(player_id, priority, packet) do
+        GenServer.call(via_tuple(@gstate_name), {:add_packet_to_player_queue,  player_id, priority, packet})
+    end
+
+    @doc """
+    [External]
+    Return the game state
+    """
+    def get_state() do
+        GenServer.call(via_tuple(@gstate_name), :get_state)
+    end
+
+    @doc """
+    [External]
+    Return the next actor id
+    """
+    def get_next_actorId() do
+        GenServer.call(via_tuple(@gstate_name), :get_next_actorId)
+    end
+
+    @doc """
+    [External]
     Return's a specific player's state
     """
     def get_pstate(player_id) do
@@ -331,6 +347,7 @@ defmodule Server.Simulation do
     end
 
     @doc """
+    [External]
     Update the game state
     """
     def update_state(new_state) do
@@ -338,6 +355,7 @@ defmodule Server.Simulation do
     end
 
     @doc """
+    [External]
     Update the game state
     """
     def update_pstate(player_id, new_state) do
@@ -345,11 +363,16 @@ defmodule Server.Simulation do
     end
 
     @doc """
+    [External]
     Call create_pstate to create this player's pstate
     """
     def update_player_input(player_id, input_state) do
         GenServer.cast(via_tuple(@gstate_name), {:update_player_input, player_id, input_state})
     end
+
+    # ---------------------------------------------------------
+    # ---     Internal Genserver call/cast handlers         ---
+    # ---------------------------------------------------------
 
     @doc """
     Creates a new player state for the new player
