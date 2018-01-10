@@ -61,6 +61,9 @@ defmodule Server.Simulation do
             for player_id <- player_ids do
                 state = Server.Simulation.get_state()
 
+                # ---Update projectiles---
+                state = Server.Actor.ProjectileState.update_projectiles(state, state.projectiles)
+
                 # ---Update this player's position---
                 pstate = state.actors_dynamic[player_id]
                 body = pstate.body
@@ -86,14 +89,17 @@ defmodule Server.Simulation do
 
                 # ---Update player weapon cooldown---
                 pstate = Actor.PlayerState.update_weapon_cooldown(pstate)
+                
                 # ---attempt to attack---
-                if lmb do
-                    {state, pstate} = 
+                {state, pstate} = 
+                    if lmb do
                         case Actor.PlayerState.fire_weapon(state, pstate) do
                             {s, ps} -> {s, ps}
                             :cooldown_block -> {state, pstate}
                         end
-                end
+                    else
+                        {state, pstate}
+                    end
                 
                 # ---check for collisions---
                 # if it isnt intersecting in the new position, then move it
@@ -114,7 +120,7 @@ defmodule Server.Simulation do
                 Server.Simulation.update_state(state)
 
                 # ---Send Projectile data to this player---
-                send_projectiles(state, player_id, state.projectiles)
+                send_projectiles_to_player(state, player_id, state.projectiles)
 
                 # ---Send this player's data to everyone else! (Self including)---
                 for other_player_id <- player_ids do
@@ -141,15 +147,36 @@ defmodule Server.Simulation do
         end
     end
 
-    def send_projectiles(state, player_id, []) do state end
-    def send_projectiles(state, player_id, projectiles) do
+    @doc """
+    goes through all the projectile actorIds and sends each one to the player
+    """
+    def send_projectiles_to_player(state, _, []) do state end
+    def send_projectiles_to_player(state, player_id, projectiles) do
         [projectile_id | tail] = projectiles
         actorState = state.actors_dynamic[projectile_id]
         message = %{type: "projectile", id: projectile_id, x: actorState.body.pos.x, y: actorState.body.pos.y, z: 0}
         packet = MessagePack.pack!(message)
         Server.Simulation.add_packet_to_player_queue(player_id, 0, packet)
         # recurse
-        send_projectiles(state, player_id, tail)
+        send_projectiles_to_player(state, player_id, tail)
+    end
+
+    @doc """
+    [Local]
+    Add a message to every player's priority queue
+    Returns
+        Updated State
+    """
+    def send_message_to_all_players(state, _, _, []) do state end
+    def send_message_to_all_players(state, packet, priority, player_ids) do
+        [player_id | tail] = player_ids
+        case Server.Simulation.add_packet_to_player_queue(state, player_id, priority, packet) do
+            {:ok, state} -> 
+                send_message_to_all_players(state, packet, priority, tail)
+            {:error, _} -> 
+                IO.puts "Failed to send message!"
+                send_message_to_all_players(state, packet, priority, player_id)
+        end
     end
 
     # check for collisions
@@ -159,7 +186,10 @@ defmodule Server.Simulation do
         else
             case Body.intersect(actors_dynamic[head].body, future_body) do
                 true -> 
-                    true
+                    case actors_dynamic[head].body.blocks do
+                        1 -> true
+                        0 -> false
+                    end
                 false -> 
                     checkForPlayerCollisions(actors_dynamic, tail, player_id, future_body)
             end
@@ -227,10 +257,11 @@ defmodule Server.Simulation do
     """
     def add_projectile_id(state, id) do
         projectiles = Map.put(state.projectiles, id, true)
-        Map.put(state, :projectiles, state.projectiles)
+        Map.put(state, :projectiles, projectiles)
     end
 
     @doc """
+    [Local]
     Add a packet to a player's packet PrioMap
     Returns 
     -> full game state map

@@ -3,6 +3,7 @@ defmodule Body do
     defstruct   pos:  %{x: 0, y: 0},
                 size: %{x: 0, y: 0},
                 rot:  %{x: 0},
+                blocks: 1,
                 onCollide: nil
 
     # def isPointInside(%{x: x1, y: y1}, %{x: x2, y: y2}) do
